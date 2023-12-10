@@ -13,7 +13,7 @@ jobs:
   build:
     container:
       image: ubuntu:22.04
-strategy:
+    strategy:
       fail-fast: false
       matrix:
         target: [w60, w60-x64, w61, w61-x64, w62-x64, w63, w63-x64, w100, w100-x64, o2k13, o2k16]
