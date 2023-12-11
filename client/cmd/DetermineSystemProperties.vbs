@@ -387,13 +387,13 @@ Private Function OfficeSPVersion(strExeVersion)
 End Function
 
 ' Quelle: https://stackoverflow.com/questions/854975/how-to-read-from-a-text-file-using-vbscript
-Private Function ReadStaticFile(strRelFileName)
+Private Function ReadTextFile(strRelFileName)
   Dim dict, file, line, row
   
   Set dict = CreateObject("Scripting.Dictionary")
   
-  If ((Not objFileSystem Is Nothing) And (objFileSystem.FileExists("..\static\" & strRelFileName) = True)) Then
-    Set file = objFileSystem.OpenTextFile ("..\static\" & strRelFileName)
+  If ((Not objFileSystem Is Nothing) And (objFileSystem.FileExists(strRelFileName) = True)) Then
+    Set file = objFileSystem.OpenTextFile (strRelFileName)
     row = 0
     Do Until file.AtEndOfStream
       line = file.Readline
@@ -404,7 +404,7 @@ Private Function ReadStaticFile(strRelFileName)
     file.Close
   End If
   
-  Set ReadStaticFile = dict
+  Set ReadTextFile = dict
 End Function
 
 Private Function CheckMSIProduct(strProductName)
@@ -421,8 +421,8 @@ Private Function CheckMSIProduct(strProductName)
   Dim MSIProduct_old_ids, MSIProduct_new_ids
   Dim strMSIProductProductBuffer, strMSIProductPatchBuffer, strMSIProductStaticId, strMSIProductStaticIdProductBuffer, strMSIProductStaticIdPatchBuffer
   
-  Set MSIProduct_old_ids = ReadStaticFile("StaticUpdateIds-MSIProducts-" & strProductName & "_old.txt")
-  Set MSIProduct_new_ids = ReadStaticFile("StaticUpdateIds-MSIProducts-" & strProductName & "_new.txt")
+  Set MSIProduct_old_ids = ReadTextFile("..\static\StaticUpdateIds-MSIProducts-" & strProductName & "_old.txt")
+  Set MSIProduct_new_ids = ReadTextFile("..\static\StaticUpdateIds-MSIProducts-" & strProductName & "_new.txt")
   
   Set objInstaller = CreateObject("WindowsInstaller.Installer")
   
@@ -523,7 +523,7 @@ For Each objQueryItem in objWMIService.ExecQuery("Select * from Win32_OperatingS
   OSVer_Real_Major = CInt(Split(objQueryItem.Version, ".")(0))
   OSVer_Real_Minor = CInt(Split(objQueryItem.Version, ".")(1))
   OSVer_Real_Build = CInt(Split(strKernelVersion, ".")(2))
-  objCmdFile.WriteLine("set OS_VER_BUILD_INTERNAL=" & strKernelVersion)
+  objCmdFile.WriteLine("set OS_VER_BUILD_INTERNAL=" & OSVer_Real_Build)
   objCmdFile.WriteLine("set OS_SP_VER_MAJOR=" & objQueryItem.ServicePackMajorVersion)
   objCmdFile.WriteLine("set OS_SP_VER_MINOR=" & objQueryItem.ServicePackMinorVersion)
   objCmdFile.WriteLine("set OS_LANG_CODE=0x" & Hex(objQueryItem.OSLanguage))
@@ -639,8 +639,14 @@ WriteVersionToFile objCmdFile, "IE_VER", RegRead(wshShell, strRegKeyIE & strRegV
 
 ' Determine Microsoft .NET Framework 3.5 SP1 installation state
 WriteVersionToFile objCmdFile, "DOTNET35_VER", RegRead(wshShell, strRegKeyDotNet35 & strRegValVersion)
+
+' Determine Microsoft .NET Framework 4.x installation state
 WriteVersionToFile objCmdFile, "DOTNET4_VER", RegRead(wshShell, strRegKeyDotNet4 & strRegValVersion)
-objCmdFile.WriteLine("set DOTNET4_RELEASE=" & RegRead(wshShell, strRegKeyDotNet4 & strRegValRelease))
+If RegExists(wshShell, strRegKeyDotNet4 & strRegValRelease) Then
+  objCmdFile.WriteLine("set DOTNET4_RELEASE=" & RegRead(wshShell, strRegKeyDotNet4 & strRegValRelease))
+Else
+  objCmdFile.WriteLine("set DOTNET4_RELEASE=0")
+End If
 
 ' Determine Windows Management Framework version
 If RegExists(wshShell, strRegKeyManagementFramework & strRegValPShVersion) Then
@@ -706,7 +712,7 @@ For i = 0 To UBound(arrayOfficeNames)
     strMSOFilePath = OfficeMSOFilePath(wshShell, arrayOfficeVersions(i))
     If strMSOFilePath <> "" Then
       If objFileSystem.FileExists(strMSOFilePath) Then
-        strOfficeMSOVersion = GetFileVersion(objFileSystem, OfficeMSOFilePath(wshShell, arrayOfficeVersions(i)))
+        strOfficeMSOVersion = GetFileVersion(objFileSystem, strMSOFilePath)
         WriteVersionToFile objCmdFile, UCase(arrayOfficeNames(i)) & "_VER", strOfficeMSOVersion
         objCmdFile.WriteLine("set " & UCase(arrayOfficeNames(i)) & "_SP_VER=" & OfficeSPVersion(strOfficeMSOVersion))
         objCmdFile.WriteLine("set " & UCase(arrayOfficeNames(i)) & "_ARCH=" & OfficeArchitecture(wshShell, strOSArchitecture, arrayOfficeVersions(i), strOfficeInstallPath))
@@ -723,7 +729,7 @@ For i = 0 To UBound(arrayOfficeNames)
 Next
 
 ' Determine installed products (for C++)
-Set MSIProducts = ReadStaticFile("StaticUpdateIds-MSIProducts.txt")
+Set MSIProducts = ReadTextFile("..\static\StaticUpdateIds-MSIProducts.txt")
 For Each strMSIProductId in MSIProducts.Items
   If CheckMSIProduct(Split(strMSIProductId, ",")(0)) = True Then objCmdFile.WriteLine("set " & UCase(Split(strMSIProductId, ",")(0)) & "=1")
 Next
