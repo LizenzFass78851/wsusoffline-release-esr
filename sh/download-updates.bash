@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
 # Filename: download-updates.bash
-# Version: Linux download scripts, version 1.23-ESR
-# Release date: 2022-11-24
+# Version: Linux download scripts, version 1.21-ESR
+# Release date: 2021-07-24
 # Development branch: esr-11.9
-# Supported version: WSUS Offline Update, Community Edition 11.9.12 (b74r2)
+# Supported version: WSUS Offline Update, Community Edition 11.9.10 (b16)
 #
-# Copyright (C) 2016-2022 Hartmut Buhrmester
+# Copyright (C) 2016-2021 Hartmut Buhrmester
 #                         <wsusoffline-scripts-xxyh@hartmut-buhrmester.de>
 #
 # License
@@ -188,8 +188,8 @@ export LC_ALL=C
 # libraries to test them and provide standard parameters for other
 # scripts.
 
-readonly script_version="1.23-ESR"
-readonly release_date="2022-11-24"
+readonly script_version="1.21-ESR"
+readonly release_date="2021-07-24"
 
 # The version of WSUS Offline Update is extracted from the script
 # DownloadUpdates.cmd, after resolving the current working directory.

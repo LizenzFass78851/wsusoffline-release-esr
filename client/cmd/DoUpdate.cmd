@@ -31,7 +31,7 @@ if "%DIRCMD%" NEQ "" set DIRCMD=
 
 cd /D "%~dp0"
 
-set WSUSOFFLINE_VERSION=11.9.12 (b80)
+set WSUSOFFLINE_VERSION=11.9.11hf5
 title %~n0 %*
 echo Starting WSUS Offline Update - Community Edition - v. %WSUSOFFLINE_VERSION% at %TIME%...
 set UPDATE_LOGFILE=%SystemRoot%\wsusofflineupdate.log
@@ -357,6 +357,14 @@ for %%i in (monitor) do (
 call :Log "Info: Adjusted power management settings"
 :SkipPowerCfg
 
+rem *** Determine Windows Update Agent (WUA) support for SHA2-signed wsusscn2.cab ***
+if "%WUA_SHA2_SUPPORT%" NEQ "1" (
+  if %WUA_VER_MAJOR% GTR %WUA_VER_TARGET_MAJOR% set WUA_SHA2_SUPPORT=1
+  if %WUA_VER_MAJOR% EQU %WUA_VER_TARGET_MAJOR% if %WUA_VER_MINOR% GTR %WUA_VER_TARGET_MINOR% set WUA_SHA2_SUPPORT=1
+  if %WUA_VER_MAJOR% EQU %WUA_VER_TARGET_MAJOR% if %WUA_VER_MINOR% EQU %WUA_VER_TARGET_MINOR% if %WUA_VER_BUILD% GTR %WUA_VER_TARGET_BUILD% set WUA_SHA2_SUPPORT=1
+  if %WUA_VER_MAJOR% EQU %WUA_VER_TARGET_MAJOR% if %WUA_VER_MINOR% EQU %WUA_VER_TARGET_MINOR% if %WUA_VER_BUILD% EQU %WUA_VER_TARGET_BUILD% if %WUA_VER_REVIS% GEQ %WUA_VER_TARGET_REVIS% set WUA_SHA2_SUPPORT=1
+)
+
 if "%JUST_OFFICE%"=="1" goto JustOffice
 
 rem *** Install Windows Service Pack ***
@@ -504,11 +512,6 @@ goto SkipSPInst
 :SPw110
 goto SkipSPInst
 :SPInstalled
-if "%REBOOT_REQUIRED%"=="1" (
-  if "%RECALL_REQUIRED%" NEQ "1" (
-    set RECALL_REQUIRED=1
-  )
-)
 if "%RECALL_REQUIRED%"=="1" goto Installed
 if "%REBOOT_REQUIRED%"=="1" goto Installed
 :SkipSPInst
@@ -613,11 +616,6 @@ call :Log "Info: Updated Servicing Stack to %SERVICING_VER_NEW%"
 set SERVICING_VER=%SERVICING_VER_NEW%
 goto CheckServicingStack
 :ServicingStackInstalled
-if "%REBOOT_REQUIRED%"=="1" (
-  if "%RECALL_REQUIRED%" NEQ "1" (
-    set RECALL_REQUIRED=1
-  )
-)
 if "%RECALL_REQUIRED%"=="1" goto Installed
 if "%REBOOT_REQUIRED%"=="1" goto Installed
 :SkipServicingStack
@@ -661,6 +659,7 @@ if exist "%TEMP%\UpdatesToInstall.txt" (
   ) else if "!ERR_LEVEL!" NEQ "0" (
     goto InstError
   )
+  set WUA_SHA2_SUPPORT=1
 ) else (
   echo Warning: Windows Update Agent installation file ^(kb%WUA_TARGET_ID%^) not found.
   call :Log "Warning: Windows Update Agent installation file (kb%WUA_TARGET_ID%) not found"
@@ -959,7 +958,7 @@ if exist "%TEMP%\UpdatesToInstall.txt" (
 :SkipIEw62Pre
 echo Installing Internet Explorer 11...
 for /F %%i in ('dir /B %IE_FILENAME%') do (
-  call InstallOSUpdate.cmd "..\%OS_NAME%-%OS_ARCH%\glb\%%i" %VERIFY_MODE% /ignoreerrors
+  call InstallOSUpdate.cmd "..\%OS_NAME%-%OS_ARCH%\glb\%%i" %VERIFY_MODE% /ignoreerrors /passive /qn /norestart
   set ERR_LEVEL=!errorlevel!
   rem echo DoUpdate: ERR_LEVEL=!ERR_LEVEL!
   if "!ERR_LEVEL!"=="3010" (
@@ -979,7 +978,7 @@ for /F %%i in ('dir /B %IE_FILENAME%') do (
   if not errorlevel 1 (
     echo Installing Internet Explorer 11 language pack...
     for /F %%i in ('dir /B %IE_LANG_FILENAME%') do (
-      call InstallOSUpdate.cmd "..\%OS_NAME%-%OS_ARCH%\glb\%%i" %VERIFY_MODE% /ignoreerrors
+      call InstallOSUpdate.cmd "..\%OS_NAME%-%OS_ARCH%\glb\%%i" %VERIFY_MODE% /ignoreerrors /passive /qn /norestart
       set ERR_LEVEL=!errorlevel!
       rem echo DoUpdate: ERR_LEVEL=!ERR_LEVEL!
       if "!ERR_LEVEL!"=="3010" (
@@ -999,11 +998,6 @@ goto IEInstalled
 :IEw100
 :IEInstalled
 set IE_FILENAME=
-if "%REBOOT_REQUIRED%"=="1" (
-  if "%RECALL_REQUIRED%" NEQ "1" (
-    set RECALL_REQUIRED=1
-  )
-)
 if "%RECALL_REQUIRED%"=="1" goto Installed
 if "%REBOOT_REQUIRED%"=="1" goto Installed
 :SkipIEInst
@@ -1166,14 +1160,13 @@ set REBOOT_REQUIRED=1
 :SkipDotNet35Inst
 
 rem *** Install .NET Framework 4 ***
-if "%INSTALL_DOTNET4%" NEQ "/instdotnet4" (
-  rem force upgrade to 4.6.2, if .NET 4 is installed
-  if "%DOTNET4_VER_MAJOR%" NEQ "4" (goto SkipDotNet4Inst)
-)
+if "%INSTALL_DOTNET4%" NEQ "/instdotnet4" goto SkipDotNet4Inst
 echo Checking .NET Framework 4 installation state...
-rem echo DOTNET4_RELEASE: DOTNET4_RELEASE
-rem echo DOTNET4_RELEASE_TARGET: DOTNET4_RELEASE_TARGET
-if %DOTNET4_RELEASE% GEQ %DOTNET4_RELEASE_TARGET% goto SkipDotNet4Inst
+if %DOTNET4_VER_MAJOR% LSS %DOTNET4_VER_TARGET_MAJOR% goto InstallDotNet4
+if %DOTNET4_VER_MAJOR% GTR %DOTNET4_VER_TARGET_MAJOR% goto SkipDotNet4Inst
+if %DOTNET4_VER_MINOR% LSS %DOTNET4_VER_TARGET_MINOR% goto InstallDotNet4
+if %DOTNET4_VER_MINOR% GTR %DOTNET4_VER_TARGET_MINOR% goto SkipDotNet4Inst
+if %DOTNET4_VER_BUILD% GEQ %DOTNET4_VER_TARGET_BUILD% goto SkipDotNet4Inst
 :InstallDotNet4
 if exist %SystemRoot%\Temp\wou_net4_tried.txt goto SkipDotNet4Inst
 if not exist %SystemRoot%\Temp\nul md %SystemRoot%\Temp
@@ -1217,19 +1210,17 @@ if "%OS_NAME%"=="w60" (
 if "%OS_NAME%"=="w60" (
   set DOTNET4_FILENAME=..\dotnet\ndp462-kb3151800-x86-x64-allos-enu.exe
   set DOTNET4LP_FILENAME=..\dotnet\ndp462-kb3151800-x86-x64-allos-%OS_LANG%.exe
-) else (
-  if "%INSTALL_DOTNET4%"=="/instdotnet4" (
-    if %OS_VER_BUILD_INTERNAL% EQU 10240 (
-      set DOTNET4_FILENAME=..\dotnet\ndp462-kb3151800-x86-x64-allos-enu.exe
-      set DOTNET4LP_FILENAME=..\dotnet\ndp462-kb3151800-x86-x64-allos-%OS_LANG%.exe
-    ) else (
-      set DOTNET4_FILENAME=..\dotnet\ndp48-x86-x64-allos-enu.exe
-      set DOTNET4LP_FILENAME=..\dotnet\ndp48-x86-x64-allos-%OS_LANG%.exe
-    )
-  ) else (
+) else if "%OS_NAME%"=="w100" (
+  if %OS_VER_BUILD_INTERNAL% LSS 14393 (
     set DOTNET4_FILENAME=..\dotnet\ndp462-kb3151800-x86-x64-allos-enu.exe
     set DOTNET4LP_FILENAME=..\dotnet\ndp462-kb3151800-x86-x64-allos-%OS_LANG%.exe
+  ) else (
+    set DOTNET4_FILENAME=..\dotnet\ndp48-x86-x64-allos-enu.exe
+    set DOTNET4LP_FILENAME=..\dotnet\ndp48-x86-x64-allos-%OS_LANG%.exe
   )
+) else (
+  set DOTNET4_FILENAME=..\dotnet\ndp48-x86-x64-allos-enu.exe
+  set DOTNET4LP_FILENAME=..\dotnet\ndp48-x86-x64-allos-%OS_LANG%.exe
 )
 if "%OS_SRV_CORE%"=="1" (
   set DOTNET4_INSTOPTS=/q /norestart
@@ -1309,7 +1300,7 @@ if "%ERR_LEVEL%"=="3010" (
 :SkipDotNet35CustomInst
 rem *** Install .NET Framework 4 - Custom ***
 if "%INSTALL_DOTNET4%"=="/instdotnet4" goto InstallDotNet4Custom
-if "%DOTNET4_VER_MAJOR%" GEQ "4" goto InstallDotNet4Custom
+if %DOTNET4_VER_MAJOR% EQU %DOTNET4_VER_TARGET_MAJOR% goto InstallDotNet4Custom
 goto SkipDotNet4CustomInst
 :InstallDotNet4Custom
 if not exist ..\static\custom\StaticUpdateIds-dotnet4.txt goto SkipDotNet4CustomInst
@@ -1337,11 +1328,6 @@ if "%ERR_LEVEL%"=="3010" (
   goto InstError
 )
 :SkipDotNet4CustomInst
-if "%REBOOT_REQUIRED%"=="1" (
-  if "%RECALL_REQUIRED%" NEQ "1" (
-    set RECALL_REQUIRED=1
-  )
-)
 if "%RECALL_REQUIRED%"=="1" goto Installed
 if "%REBOOT_REQUIRED%"=="1" goto Installed
 
@@ -1349,9 +1335,9 @@ rem *** Install Windows Management Framework ***
 if "%INSTALL_WMF%" NEQ "/instwmf" goto SkipWMFInst
 if "%OS_NAME%"=="w100" goto SkipWMFInst
 if "%OS_NAME%"=="w60" (if %OS_DOMAIN_ROLE% LSS 2 goto SkipWMFInst)
-if %DOTNET4_RELEASE% LSS %WMF_PREREQ_DOTNET4_RELEASE% (
-  echo Warning: Missing Windows Management Framework prerequisite .NET Framework 4.5.2 or newer.
-  call :Log "Warning: Missing Windows Management Framework prerequisite .NET Framework 4.5.2 or newer"
+if %DOTNET4_VER_MAJOR% LSS %DOTNET4_VER_TARGET_MAJOR% (
+  echo Warning: Missing Windows Management Framework prerequisite .NET Framework 4.
+  call :Log "Warning: Missing Windows Management Framework prerequisite .NET Framework ^4"
   goto SkipWMFInst
 )
 echo Checking Windows Management Framework installation state...
@@ -1566,11 +1552,6 @@ if exist "%TEMP%\UpdatesToInstall.txt" (
 rem FIXME 11.9.8 (b69)
 set RECALL_REQUIRED=1
 :SkipTSCInst
-if "%REBOOT_REQUIRED%"=="1" (
-  if "%RECALL_REQUIRED%" NEQ "1" (
-    set RECALL_REQUIRED=1
-  )
-)
 if "%REBOOT_REQUIRED%"=="1" goto Installed
 if "%RECALL_REQUIRED%"=="1" goto Installed
 
@@ -1898,22 +1879,10 @@ if exist "%TEMP%\UpdatesToInstall.txt" (
   )
   call :Log "Info: Installed Windows Update scan prerequisites"
 )
-rem *** Enforce all optional components to be fully updated (including reboot) before dynamically searching for updates ***
-if "%REBOOT_REQUIRED%"=="1" (
-  if "%RECALL_REQUIRED%" NEQ "1" (
-    set RECALL_REQUIRED=1
-  )
-)
 if "%RECALL_REQUIRED%"=="1" goto Installed
 if "%REBOOT_REQUIRED%"=="1" goto Installed
 
 :ListMissingIds
-rem *** Determine Windows Update Agent (WUA) support for SHA2-signed wsusscn2.cab ***
-set WUA_SHA2_SUPPORT=0
-if %WUA_VER_MAJOR% GTR %WUA_VER_SHA2_MAJOR% set WUA_SHA2_SUPPORT=1
-if %WUA_VER_MAJOR% EQU %WUA_VER_SHA2_MAJOR% if %WUA_VER_MINOR% GTR %WUA_VER_SHA2_MINOR% set WUA_SHA2_SUPPORT=1
-if %WUA_VER_MAJOR% EQU %WUA_VER_SHA2_MAJOR% if %WUA_VER_MINOR% EQU %WUA_VER_SHA2_MINOR% if %WUA_VER_BUILD% GTR %WUA_VER_SHA2_BUILD% set WUA_SHA2_SUPPORT=1
-if %WUA_VER_MAJOR% EQU %WUA_VER_SHA2_MAJOR% if %WUA_VER_MINOR% EQU %WUA_VER_SHA2_MINOR% if %WUA_VER_BUILD% EQU %WUA_VER_SHA2_BUILD% if %WUA_VER_REVIS% GEQ %WUA_VER_SHA2_REVIS% set WUA_SHA2_SUPPORT=1
 rem *** Adjust service 'Windows Update' ***
 echo Adjusting service 'Windows Update'...
 call :EnableWUSvc
@@ -2117,14 +2086,6 @@ set NISDEFS_VER_TARGET_MINOR=
 set NISDEFS_VER_TARGET_BUILD=
 set NISDEFS_VER_TARGET_REVIS=
 
-if "%BOOT_MODE%"=="/autoreboot" (
-  if "%REBOOT_REQUIRED%"=="1" (
-    if "%RECALL_REQUIRED%" NEQ "1" (
-      rem echo DEBUG: Enforcing recall when reboot is required while on autoreboot is enabled
-      set RECALL_REQUIRED=1
-    )
-  )
-)
 if "%RECALL_REQUIRED%"=="1" goto Installed
 if "%REBOOT_REQUIRED%"=="1" goto Installed
 goto NoUpdates
@@ -2228,12 +2189,6 @@ if "%SHOW_LOG%"=="/showlog" start %SystemRoot%\System32\notepad.exe %UPDATE_LOGF
 goto :eof
 
 :Installed
-rem echo DoUpdate (Installed): RECALL_REQUIRED:%RECALL_REQUIRED%
-rem echo DoUpdate (Installed): REBOOT_REQUIRED:%REBOOT_REQUIRED%
-rem echo DoUpdate (Installed): BOOT_MODE:%BOOT_MODE%
-rem echo DoUpdate (Installed): OS_NAME:%OS_NAME%
-rem echo DoUpdate (Installed): OS_DOMAIN_ROLE:%OS_DOMAIN_ROLE%
-rem echo DoUpdate (Installed): USERNAME:%USERNAME%
 if "%RECALL_REQUIRED%"=="1" (
   if "%BOOT_MODE%"=="/autoreboot" (
     if "%OS_NAME%"=="w100" (

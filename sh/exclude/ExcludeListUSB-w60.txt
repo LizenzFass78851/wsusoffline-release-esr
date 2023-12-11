@@ -24,5 +24,6 @@
 *_x64*
 *NDP48-*
 *ndp48-*
+*Silverlight_x64*
 /*.au3
 /bin/IfAdmin.cpp

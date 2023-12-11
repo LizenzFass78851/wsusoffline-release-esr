@@ -2,7 +2,7 @@
 #
 # Filename: 70-update-configuration-files.bash
 #
-# Copyright (C) 2016-2022 Hartmut Buhrmester
+# Copyright (C) 2016-2021 Hartmut Buhrmester
 #                         <wsusoffline-scripts-xxyh@hartmut-buhrmester.de>
 #
 # License
@@ -41,9 +41,6 @@ hidelist_seconly_url="https://gitlab.com/wsusoffline/wsusoffline-sdd/-/raw/esr-1
 static_downloadfiles_modified_url="https://gitlab.com/wsusoffline/wsusoffline-sdd/-/raw/esr-11.9/StaticDownloadFiles-modified.txt"
 exclude_downloadfiles_modified_url="https://gitlab.com/wsusoffline/wsusoffline-sdd/-/raw/esr-11.9/ExcludeDownloadFiles-modified.txt"
 static_updatefiles_modified_url="https://gitlab.com/wsusoffline/wsusoffline-sdd/-/raw/esr-11.9/StaticUpdateFiles-modified.txt"
-# Introduced in Community Edition 11.9.11 (b8)
-option_list_url="https://gitlab.com/wsusoffline/wsusoffline-sdd/-/raw/esr-11.9/OptionList.txt"
-option_list_wildcard_url="https://gitlab.com/wsusoffline/wsusoffline-sdd/-/raw/esr-11.9/OptionList-wildcard.txt"
 
 # ========== Functions ====================================================
 
@@ -126,9 +123,6 @@ function remove_obsolete_files ()
 {
     local -a file_list=()
     local current_file=""
-    local name=""
-    local arch=""
-    local type=""
 
     log_info_message "Removing obsolete files from previous versions of WSUS Offline Update..."
     # Only changes since WSUS Offline Update version 9.5.3 are considered.
@@ -142,22 +136,12 @@ function remove_obsolete_files ()
     then
         log_warning_message "Keeping dummy.txt files in development version..."
     else
-        file_list+=(
-            ./exclude/local/dummy.txt
-            ../log/dummy.txt
-            ../iso/dummy.txt
-            ../exclude/custom/dummy.txt
-            ../static/custom/dummy.txt
-            ../static/sdd/dummy.txt
-            ../client/exclude/custom/dummy.txt
-            ../client/static/custom/dummy.txt
-            ../client/software/msi/dummy.txt
-            ../client/UpdateTable/dummy.txt
-        )
+        find .. -type f -name dummy.txt -delete
     fi
 
     # *** Obsolete internal stuff ***
     file_list+=(
+        ../cmd/ExtractUniqueFromSorted.vbs
         ../cmd/CheckTRCerts.cmd
         ../client/static/StaticUpdateIds-w100-x86.txt
         ../client/static/StaticUpdateIds-w100-x64.txt
@@ -165,12 +149,6 @@ function remove_obsolete_files ()
 
     # Removed in WSUS Offline Update 10.9
     file_list+=( ../client/exclude/ExcludeUpdateFiles-modified.txt )
-
-    # Removed in Community Edition 11.9.11 (b8)
-    file_list+=(
-        ../client/opt/OptionList-Q.txt
-        ../client/opt/OptionList-qn.txt
-    )
 
     # Removed in the Community Editions 11.9.2-ESR and 12.1
     #
@@ -336,22 +314,6 @@ function remove_obsolete_files ()
     )
     shopt -u nullglob
 
-    # *** CPP restructuring stuff ***
-    #
-    # Removed in Community Edition 11.9.11 (b8)
-    for name in cpp2005 cpp2008 cpp2010 cpp2012 cpp2013 cpp2015
-    do
-        for arch in x64 x86
-        do
-            for type in documented new old
-            do
-                file_list+=(
-                    "../client/static/StaticUpdateIds-${name}_${arch}_${type}.txt"
-                )
-            done
-        done
-    done
-
     # *** .NET restructuring stuff ***
     #
     # Removed in Community Editions 11.9.8-ESR and 12.3. The XSLT files
@@ -418,7 +380,7 @@ function remove_obsolete_files ()
         do
             if [[ -f "${current_file}" ]]
             then
-                #log_debug_message "Deleting ${current_file}"
+                log_debug_message "Deleting ${current_file}"
                 rm "${current_file}"
             fi
         done
@@ -510,14 +472,6 @@ function update_configuration_files ()
 
     log_info_message "Checking directory wsusoffline/client/static ..."
     recursive_download "../client/static" "${static_updatefiles_modified_url}"
-    echo ""
-
-    # The files OptionList.txt and OptionList-wildcard.txt were introduced
-    # in Community Edition 11.9.11 (b8) and 12.6.1 (b8)
-    download_from_gitlab "../client/opt" "${option_list_url}"
-    echo ""
-
-    download_from_gitlab "../client/opt" "${option_list_wildcard_url}"
     #echo ""
 
     if same_error_count "${initial_errors}"
@@ -534,48 +488,44 @@ function update_configuration_files ()
 
 # Function recursive_download
 #
-# The function recursive_download is used for the update of the
-# configuration files in the directories wsusoffline/static, exclude
-# and client/static.
+# The function recursive_download is used for the configuration files
+# StaticDownloadFiles-modified.txt, ExcludeDownloadFiles-modified.txt
+# and StaticUpdateFiles-modified.txt. These files don't exist on the
+# first download run.
 #
-# If first downloads the index files StaticDownloadFiles-modified.txt,
-# ExcludeDownloadFiles-modified.txt and StaticUpdateFiles-modified.txt
-# to the directory wsusoffline/static/sdd.
+# They contain download links for configuration files, which have been
+# modified since the last release of WSUS Offline Update.
 #
-# These index files contain the filenames of configuration files, which
-# have been modified since the last release of WSUS Offline Update.
+# Directly after a version update of WSUS Offline Update, these index
+# files are usually empty.
 #
-# The filenames will be appended to base URLs, which are derived
-# from the download links of the index files. Then the modified files
-# are downloaded to the directories wsusoffline/static, exclude and
-# client/static.
+# If they are not empty, then the contained URLs will be recursively
+# downloaded.
 #
-# In earlier versions of WSUS Offline Update, this recursive download was
-# only applied to the wsusoffline/static directory. Therefore, this step
-# is still known as the "update of static download definitions (SDD)".
-
+# In earlier versions of WSUS Offline Update, this recursive download
+# was only used for the static directory. Therefore, this step is still
+# known as the "update of static download definitions (SDD)".
 function recursive_download ()
 {
     local download_dir="$1"
-    local download_link="$2"  # URL of the index file
-    local index_filename="${download_link##*/}"  # basename in bash
-    local base_url="${download_link%.txt}"  # base URL of the modified files
+    local download_link="$2"
+    local filename="${download_link##*/}"
     local -i number_of_links="0"
-    local modified_filename=""
+    local url=""
     local -i initial_errors="0"
     initial_errors="$(get_error_count)"
 
-    log_info_message "Downloading/validating index file ${index_filename} ..."
+    log_info_message "Downloading/validating index file ${filename} ..."
     # Since version 1.19.2-CE and 2.1-CE of the Linux download scripts,
     # the three index files are downloaded to ../static/sdd, only the
-    # included files are downloaded to the specified download directories
+    # included links are downloaded to the specified download directories
     # ../static, ../exclude and ../client/static.
     download_from_gitlab "../static/sdd" "${download_link}"
     if same_error_count "${initial_errors}"
     then
-        log_debug_message "Downloaded/validated index file ${index_filename}"
+        log_debug_message "Downloaded/validated index file ${filename}"
     else
-        log_warning_message "The download of index file ${index_filename} failed"
+        log_warning_message "The download of index file ${filename} failed"
         return 0
     fi
 
@@ -583,31 +533,24 @@ function recursive_download ()
     # Update, the index files StaticDownloadFiles-modified.txt,
     # ExcludeDownloadFiles-modified.txt and StaticUpdateFiles-modified.txt
     # are usually empty.
-    if [[ -s "../static/sdd/${index_filename}" ]]
+    if [[ -s "../static/sdd/${filename}" ]]
     then
-        number_of_links="$( wc -l < "../static/sdd/${index_filename}" )"
-        log_info_message "Downloading/validating ${number_of_links} link(s) from index file ${index_filename} ..."
+        number_of_links="$( wc -l < "../static/sdd/${filename}" )"
+        log_info_message "Downloading/validating ${number_of_links} link(s) from index file ${filename} ..."
 
-        # Since wsusoffline versions 11.9.12 (b43) and 12.7 (b43),
-        # the index files only contain the filenames of the modified
-        # files. The filenames must be appended to a base url, to get
-        # the complete download links.
-        while IFS=$'\r\n' read -r modified_filename
+        while IFS=$'\r\n' read -r url
         do
-            if [[ -n "${modified_filename}" ]]
-            then
-                download_from_gitlab "${download_dir}"  \
-                                     "${base_url}/${modified_filename}"
-            fi
-        done < "../static/sdd/${index_filename}"
+            download_from_gitlab "${download_dir}" "${url}"
+        done < "../static/sdd/${filename}"
 
         if same_error_count "${initial_errors}"
         then
-            log_info_message "Downloaded/validated ${number_of_links} link(s) from index file ${index_filename}"
+            log_info_message "Downloaded/validated ${number_of_links} link(s) from index file ${filename}"
         else
-            log_warning_message "Some downloads from index file ${index_filename} failed. See the download log for details."
+            log_warning_message "Some downloads from index file ${filename} failed -- see the download log for details"
         fi
     fi
+
     return 0
 }
 

@@ -142,10 +142,6 @@ for /F "usebackq tokens=1,2 delims=," %%i in ("%TEMP%\MissingUpdateIds.txt") do 
           for /F "tokens=1,2 delims=," %%l in (..\UpdateTable\UpdateTable-%OS_NAME%-%%k.csv) do (
             if "%%l"=="%%j" (
               call ListUpdateFile.cmd %%m ..\%OS_SEARCH_DIR%\%%k /searchleftmost /append
-              if errorlevel 1 (
-                rem echo Warning: Update file %%m ^(id: %%j^) not found.
-                echo %DATE% %TIME% - Warning: Update file %%m ^(id: %%j^) not found>>%UPDATE_LOGFILE%
-              )
             )
           )
         )
@@ -156,10 +152,6 @@ for /F "usebackq tokens=1,2 delims=," %%i in ("%TEMP%\MissingUpdateIds.txt") do 
             for /F "tokens=1,2 delims=," %%l in (..\UpdateTable\UpdateTable-o2k13-%%k.csv) do (
               if "%%l"=="%%j" (
                 call ListUpdateFile.cmd %%m ..\o2k13\%%k /searchleftmost /append
-                if errorlevel 1 (
-                  rem echo Warning: Update file %%m ^(id: %%j^) not found.
-                  echo %DATE% %TIME% - Warning: Update file %%m ^(id: %%j^) not found>>%UPDATE_LOGFILE%
-                )
               )
             )
           )
@@ -171,10 +163,6 @@ for /F "usebackq tokens=1,2 delims=," %%i in ("%TEMP%\MissingUpdateIds.txt") do 
             for /F "tokens=1,2 delims=," %%l in (..\UpdateTable\UpdateTable-o2k16-%%k.csv) do (
               if "%%l"=="%%j" (
                 call ListUpdateFile.cmd %%m ..\o2k16\%%k /searchleftmost /append
-                if errorlevel 1 (
-                  rem echo Warning: Update file %%m ^(id: %%j^) not found.
-                  echo %DATE% %TIME% - Warning: Update file %%m ^(id: %%j^) not found>>%UPDATE_LOGFILE%
-                )
               )
             )
           )
